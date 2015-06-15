@@ -5,6 +5,15 @@ __global__ void vecAdd(float *in1, float *in2, float *out, int len) {
   //@@ Insert code to implement vector addition here
 }
 
+#define wbCheck(stmt) do {\
+  cudaError_t err = stmt;\
+  if (err != cudaSuccess) {\
+    wbLog(ERROR, "Failed to run stmt ", #stmt);\
+    wbLog(ERROR, "Got CUDA error ... ", cudaGetErrorString(err));\
+    return -1;\
+  }\
+} while(0)
+
 int main(int argc, char **argv) {
   wbArg_t args;
   int inputLength;
@@ -27,6 +36,8 @@ int main(int argc, char **argv) {
 
   wbTime_start(GPU, "Allocating GPU memory.");
   //@@ Allocate GPU memory here
+  int size = 20 * sizeof(float);
+  wbCheck(cudaMalloc((void **) &GPU, size));
 
   wbTime_stop(GPU, "Allocating GPU memory.");
 
