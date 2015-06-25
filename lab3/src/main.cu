@@ -40,25 +40,39 @@ int main(int argc, char **argv) {
   hostB =
       ( float * )wbImport(wbArg_getInputFile(args, 1), &numBRows, &numBColumns);
   //@@ Set numCRows and numCColumns
-  numCRows = 0;
-  numCColumns = 0;
+  numCRows = numARows;
+  numCColumns = numBColumns;
+  
   //@@ Allocate the hostC matrix
+  hostC = ( float * )malloc(numCRows * numCColumns * sizeof(float));
   wbTime_stop(Generic, "Importing data and creating memory on host");
 
   wbLog(TRACE, "The dimensions of A are ", numARows, " x ", numAColumns);
   wbLog(TRACE, "The dimensions of B are ", numBRows, " x ", numBColumns);
+  wbLog(TRACE, "The dimensions of C are ", numCRows, " x ", numCColumns);
 
   wbTime_start(GPU, "Allocating GPU memory.");
   //@@ Allocate GPU memory here
+  wbCheck(cudaMalloc((void **) &deviceA, numARows * numAColumns * sizeof(int)));
+  wbCheck(cudaMalloc((void **) &deviceB, numBRows * numBColumns * sizeof(int)));
+  wbCheck(cudaMalloc((void **) &deviceC, numCRows * numCColumns * sizeof(int)));
 
   wbTime_stop(GPU, "Allocating GPU memory.");
 
   wbTime_start(GPU, "Copying input memory to the GPU.");
   //@@ Copy memory to the GPU here
+  wbCheck(cudaMemcpy( deviceA, hostA, numARows * numAColumns * sizeof(int), cudaMemcpyHostToDevice ));
+  wbCheck(cudaMemcpy( deviceB, hostB, numBRows * numBColumns * sizeof(int), cudaMemcpyHostToDevice ));
 
   wbTime_stop(GPU, "Copying input memory to the GPU.");
 
   //@@ Initialize the grid and block dimensions here
+  int BLOCK_WIDTH = 16;
+  int Width = numCRows * numCColumns;
+  int NumBlocks = Width/BLOCK_WIDTH;
+  if (Width % BLOCK_WIDTH) NumBlocks++;
+  dim3 dimGrid(NumBlocks, NumBlocks);
+  dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH);
 
   wbTime_start(Compute, "Performing CUDA computation");
   //@@ Launch the GPU Kernel here
