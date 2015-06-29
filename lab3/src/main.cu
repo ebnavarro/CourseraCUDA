@@ -18,12 +18,12 @@ __global__ void matrixMultiply(float *A, float *B, float *C, int numARows,
   int Row = blockIdx.y*blockDim.y+threadIdx.y;
   int Col = blockIdx.x*blockDim.x+threadIdx.x;
   if ((Row < numCRows) && (Col < numCColumns)) {
-    float Cvalue = 0.0;
+	float Cvalue = 0.0;
 	for (int i = 0; i < numAColumns; ++i) {
         /* A[Row, i] and B[i, Col] */
-        Cvalue += A[Row*numAColumns+i] * B[Col+i*numBColumns];
-        C[Row*numCColumns+Col] = Cvalue;
+        Cvalue += A[(Row*numAColumns)+i] * B[Col+(i*numBColumns)];
 	}
+	C[(Row*numCColumns)+Col] = Cvalue;
   }
 }
 
@@ -77,17 +77,16 @@ int main(int argc, char **argv) {
   wbTime_stop(GPU, "Copying input memory to the GPU.");
 
   //@@ Initialize the grid and block dimensions here
-  //int BLOCK_WIDTH = 16;	
-  //dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH);
-  dim3 dimBlock(numCColumns, numCRows);
-  dim3 dimGrid(numCColumns/dimBlock.x, numCRows/dimBlock.y);
-  wbLog(TRACE, ">>>GRID: ", numCColumns/dimBlock.x, " x ", numCRows/dimBlock.y);
+  float BLOCK_WIDTH = 16.0;
+  dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH);
+  dim3 dimGrid(ceil(numCColumns/dimBlock.x)+1, ceil(numCRows/dimBlock.y)+1);
+  wbLog(TRACE, ">>>GRID: ", ceil(numCColumns/dimBlock.x)+1, " x ", ceil(numCRows/dimBlock.y)+1);
   
   
 
   wbTime_start(Compute, "Performing CUDA computation");
   //@@ Launch the GPU Kernel here
-  matrixMultiply<<<dimGrid, dimBlock>>>(hostA, hostB, hostC, numARows,
+  matrixMultiply<<<dimGrid, dimBlock>>>(deviceA, deviceB, deviceC, numARows,
                                numAColumns, numBRows, numBColumns,
                                numCRows, numCColumns);
   	
@@ -97,6 +96,9 @@ int main(int argc, char **argv) {
   wbTime_start(Copy, "Copying output memory to the CPU");
   //@@ Copy the GPU memory back to the CPU here
   wbCheck(cudaMemcpy( hostC, deviceC, numCRows * numCColumns * sizeof(float), cudaMemcpyDeviceToHost));
+  
+  //CHECKING
+  wbLog(TRACE, "CHECKING ", hostC[0], " - ", hostC[64]);
 
   wbTime_stop(Copy, "Copying output memory to the CPU");
 
