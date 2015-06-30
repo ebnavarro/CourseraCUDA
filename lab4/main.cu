@@ -29,18 +29,27 @@ __global__ void matrixMultiplyShared(float *A, float *B, float *C, int numARows,
   int Col = bx * blockDim.x + tx;
   float Cvalue= 0;
   // Loop over the A and B tiles required to compute the C element
-  for(int t = 0; t < (numAColumns/TILE_WIDTH); ++t){
-    // Collaborative loading of A and B tiles into shared memory
-    ds_A[ty][tx] = A[Row*numAColumns + t*TILE_WIDTH+tx];
-    ds_B[ty][tx] = B[(t*TILE_WIDTH+ty)*numBColumns + Col];
+  for (int t = 0; t < (numAColumns-1)/TILE_WIDTH + 1; t++) {
+    if(Row < numARows && t*TILE_WIDTH+tx < numAColumns) {
+      ds_A[ty][tx] = A[Row*numAColumns + t*TILE_WIDTH + tx];
+    } else {
+      ds_A[ty][tx] = 0.0;
+    }
+    if (t*TILE_WIDTH+ty < numAColumns && Col < numBColumns) {
+      ds_B[ty][tx] = B[(t*TILE_WIDTH + ty)*numBColumns+ Col];
+    } else {
+      ds_B[ty][tx] = 0.0;
+    }
     __syncthreads();
-  
-	for (int i = 0; i < TILE_WIDTH; ++i)
-      Cvalue += ds_A[ty][i] * ds_B[i][tx];
 	  
+    for (int i = 0; i < TILE_WIDTH; i++) {
+      Cvalue+= ds_A[ty][i] * ds_B[i][tx];
+    }
     __syncthreads();
-  }
-  C[Row*numCColumns+Col] = Cvalue;
+  } /* end of outer for loop */
+	
+  if (Row < numARows && Col < numBColumns) 
+    C[Row*numCColumns+Col] = Cvalue;
 }
 
 int main(int argc, char **argv) {
@@ -74,6 +83,7 @@ int main(int argc, char **argv) {
 
   wbLog(TRACE, "The dimensions of A are ", numARows, " x ", numAColumns);
   wbLog(TRACE, "The dimensions of B are ", numBRows, " x ", numBColumns);
+  wbLog(TRACE, "The dimensions of C are ", numCRows, " x ", numCColumns);
 
   wbTime_start(GPU, "Allocating GPU memory.");
   //@@ Allocate GPU memory here
@@ -91,11 +101,9 @@ int main(int argc, char **argv) {
   wbTime_stop(GPU, "Copying input memory to the GPU.");
 
   //@@ Initialize the grid and block dimensions here
-  //float BLOCK_WIDTH = 16.0;
-  //dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH);
-  //dim3 dimGrid(ceil(numCColumns/dimBlock.x)+1, ceil(numCRows/dimBlock.y)+1);
-  dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
-  dim3 dimGrid(numCColumns/dimBlock.x, numCRows/dimBlock.y);
+  float BLOCK_WIDTH = 16.0;
+  dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH);
+  dim3 dimGrid(ceil(numCColumns/dimBlock.x)+1, ceil(numCRows/dimBlock.y)+1);
 
   wbTime_start(Compute, "Performing CUDA computation");
   //@@ Launch the GPU Kernel here
