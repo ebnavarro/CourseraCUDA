@@ -12,6 +12,7 @@
 
 #define Mask_width  5
 #define Mask_radius Mask_width/2
+#define clamp(x) (min(max(x,0.0),1.0))
 
 //@@ INSERT CODE HERE
 #define O_TILE_WIDTH 12
@@ -28,6 +29,28 @@ __global__ void convolution_kernel(float *P, float *N,
 	int col_o = blockIdx.x*O_TILE_WIDTH + tx;
 	int row_i = row_o -2;
 	int col_i = col_o -2;
+	
+	
+	for (int i=0; i<height; i++) {
+		for (int j=0; j<width; j++) {
+			for (int k=0; k<width; k++) {
+				float accum = 0.0f;
+				if(ty < O_TILE_WIDTH && tx< O_TILE_WIDTH){
+					for (int y=0; y<Mask_width; y++) {
+						for (int x=0; x<Mask_width; x++) {
+							//accum += P[y+ty][x+tx] * M[y][x];
+							accum += P[0] * M[0];
+						}
+					}
+				}
+				if(row_o < height && col_o < width){
+					int index = (row_o*width) + col_o;
+					N[index] = clamp(accum);
+				}
+			}
+		}
+	}
+	
 	
 /*	// Taking Care of Boundaries (1 channel)
 	if((row_i>= 0) && (row_i< height) &&
@@ -120,6 +143,7 @@ int main(int argc, char* argv[]) {
 	dim3 dimBlock(BLOCK_WIDTH,BLOCK_WIDTH);
 	dim3 dimGrid((imageWidth-1)/O_TILE_WIDTH+1, (imageHeight-1)/O_TILE_WIDTH+1, 1);
 	wbLog(TRACE, "dimGrid: ", (imageWidth-1)/O_TILE_WIDTH+1, " x ", (imageHeight-1)/O_TILE_WIDTH+1, " x ", 1);
+	wbLog(TRACE, "M: ", hostInputImageData[0]);
 	
 	// invoke CUDA kernel
     convolution_kernel<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, 
