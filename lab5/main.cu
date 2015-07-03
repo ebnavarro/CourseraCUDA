@@ -14,6 +14,45 @@
 #define Mask_radius Mask_width/2
 
 //@@ INSERT CODE HERE
+#define O_TILE_WIDTH 12
+#define BLOCK_WIDTH (O_TILE_WIDTH + 4)
+// implement the tiled 2D convolution kernel with adjustments for channels
+// use shared memory to reduce the number of global accesses, handle the boundary conditions in when loading input list elements into the shared memory
+__global__ void convolution_kernel(float *P, float *N,
+									int height, int width, int channels,
+									const float* __restrict__ M) {
+	// Shifting from output coordinates to input coordinate
+	int tx = threadIdx.x;
+	int ty = threadIdx.y;
+	int row_o = blockIdx.y*O_TILE_WIDTH + ty;
+	int col_o = blockIdx.x*O_TILE_WIDTH + tx;
+	int row_i = row_o -2;
+	int col_i = col_o -2;
+	
+/*	// Taking Care of Boundaries (1 channel)
+	if((row_i>= 0) && (row_i< height) &&
+			(col_i>= 0) && (col_i< width) ) {
+		Ns[ty][tx] = data[row_i*width + col_i];
+	} else{
+		Ns[ty][tx] = 0.0f;
+	}
+	
+	// Some threads do not participate in calculating output.(1 channel)
+	float output = 0.0f;
+	if(ty < O_TILE_WIDTH && tx< O_TILE_WIDTH){
+		for(i = 0; i < MASK_WIDTH; i++) {
+			for(j = 0; j < MASK_WIDTH; j++) {
+				output += M[i][j] * Ns[i+ty][j+tx];
+			}
+		}
+	}
+	
+	// Some threads do not write output (1 channel)
+	if(row_o< height && col_o< width)
+		data[row_o*width + col_o] = output;
+*/	
+	
+}
 
 
 int main(int argc, char* argv[]) {
@@ -77,6 +116,17 @@ int main(int argc, char* argv[]) {
 
     wbTime_start(Compute, "Doing the computation on the GPU");
     //@@ INSERT CODE HERE
+	// initialize thread block and kernel grid dimensions
+	dim3 dimBlock(BLOCK_WIDTH,BLOCK_WIDTH);
+	dim3 dimGrid((imageWidth-1)/O_TILE_WIDTH+1, (imageHeight-1)/O_TILE_WIDTH+1, 1);
+	wbLog(TRACE, "dimGrid: ", (imageWidth-1)/O_TILE_WIDTH+1, " x ", (imageHeight-1)/O_TILE_WIDTH+1, " x ", 1);
+	
+	// invoke CUDA kernel
+    convolution_kernel<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, 
+                                       imageChannels, imageWidth, imageHeight, deviceMaskData);
+
+	
+	
     wbTime_stop(Compute, "Doing the computation on the GPU");
 
 
